@@ -4,11 +4,11 @@
 **Starter repository (GitHub template):** [https://github.com/cwillpinto/cs379-pa07-parameter-simulator](https://github.com/cwillpinto/cs379-pa07-parameter-simulator)
 
 ### 🔧 Pipeline Context
-This is the **argument-binding stage** of the USILang pipeline. It consumes the `ActivationRecord`/`CallStack` model from PA 6 — every call already gets a frame with locals, parameters, and links — and fills in exactly *how* arguments get copied (or not) into that frame's parameter slots. It also introduces **closures**, functions that carry their defining environment with them. The resulting call/closure mechanism becomes the dispatch target PA 8's VTable engine invokes next week.
+This is the **argument-binding stage** of the USILang pipeline. It builds on the `ActivationRecord` model from PA 6: the Python harness creates a call frame, and your code decides how arguments occupy its parameter slots. It also introduces **closures**, functions that carry their defining environment with them. PA 7 uses Python AST objects and a simulated call body; the supplied parser does not parse function calls. This call model prepares the dispatch target for PA 8's VTable work.
 
-**Schedule:** Due Monday, October 19, 2026 at 11:59 PM Central.
+**Schedule:** The Week 8 PA 7 lesson meets Tuesday, October 13, 2026. This is a complete 100-point Project-Oriented Assignment. Due Monday, October 19, 2026 at 11:59 PM Central.
 
-**Verification question:** For each binding mode, identify who owns the writable cell, when the caller can observe a change, and which test would expose an incorrect implementation. Python's sharing of a mutable list object is a separate object-aliasing example; it is not itself USILang pass-by-reference.
+**Verification question:** For each binding mode, identify who owns the writable cell, when the caller can observe an assignment to the parameter name, and which test would expose an incorrect implementation. Python's sharing of a mutable list object is a separate object-aliasing example; it is not itself USILang pass-by-reference.
 
 ---
 
@@ -38,7 +38,7 @@ This is the **argument-binding stage** of the USILang pipeline. It consumes the 
 ---
 
 ### Part B: The Implementation (50 Points)
-**Instructions:** Implement parameter-mode binding and closures in `parameters.py`, extending the function-call evaluator from PA 6.
+**Instructions:** Implement parameter-mode binding and closures in `parameters.py`, using the PA 6 frame model. The harness simulates calls; PA 6 did not supply a function-call evaluator.
 
 **Requirements:**
 1. Implement the binder:
@@ -48,11 +48,12 @@ This is the **argument-binding stage** of the USILang pipeline. It consumes the 
        ...
    ```
    `bind_parameters` must populate `callee_record.locals_env` (the PA 6 `Environment`) according to each parameter's declared mode:
-   - `"value"`: copy the evaluated argument; later mutation inside the callee must not affect the caller.
+   - `"value"`: place the evaluated argument in a new callee `Cell`; assignment to the parameter name must not change the caller's variable `Cell`. Mutating a shared object held inside a `Cell` is a separate issue.
    - `"reference"`: bind the callee's parameter name directly to the caller's variable slot, so writes inside the callee are visible in the caller immediately.
    - `"value-result"`: copy the value in on call, and copy the (possibly mutated) local value back out to the caller's variable **only when the function returns** — not on every intermediate write.
-   - Record value-result destinations at call time and use `commit_value_result(callee_record, caller_env)` after the body. Copy back left to right in parameter declaration order.
-2. Represent each function parameter's annotation in `param_specs` (for example, `[('a', 'reference'), ('b', 'reference')]` for `func swap(ref a, ref b)`). Unannotated parameters default to `value`. The supplied parser does not implement function-call syntax; the Python harness drives this interface directly.
+   - Reference and value-result arguments must be caller variables, because they need writable destinations; value mode may receive an expression. Record value-result destinations at call time and use `commit_value_result(callee_record, caller_env)` after the body. Copy back left to right in parameter declaration order.
+   - The PA 4 `Environment` interface remains the name-to-value mapping, but PA 7 stores `Cell` objects in it instead of declaration line numbers. Its `define` and `resolve` methods must preserve those objects. The PA 6 `ActivationRecord` supplies `locals_env`; the closure's lexical parent is an `Environment` link.
+2. Represent each function parameter's mode in `param_specs` (for example, `[('a', 'reference'), ('b', 'reference')]` for `func swap(ref a, ref b)`). Represent an unannotated parameter as `('name', 'value')`; the Python harness supplies these tuples directly. The supplied parser does not implement function-call syntax or infer the default mode.
 3. Implement `Closure`:
    ```python
    class Closure:
@@ -61,12 +62,12 @@ This is the **argument-binding stage** of the USILang pipeline. It consumes the 
        def call(self, args, caller_env):
            ...
    ```
-   `Closure.call` must create the new callee `Environment` as a child of `defining_env` (the environment captured at closure-creation time), **not** a child of `caller_env`. This is what makes lexical scoping and correct closure capture work together with the static link from PA 6.
+   `Closure.call` receives already-evaluated Python values in `args`. It must create a fresh callee `Environment` as a child of `defining_env` (the environment captured at closure-creation time), **not** a child of `caller_env`; bind each parameter to a new `Cell` there. This environment parent acts as the lexical link modeled in PA 6.
 4. **Aliasing Safety:** your implementation must reproduce the asymmetric `P(a,a)` divergence from Part A. The harness checks both modes and the defined copy-back order.
 
-**Dependency preflight:** Before running the harness, replace the placeholder `lexer.py`, `parser.py`, `symtable.py`, and `frames.py` with your completed prior-stage files. The harness checks these dependencies and reports a setup failure before the PA 7 tests if they remain incomplete.
+**Dependency preflight:** Before running the harness, replace the placeholder `lexer.py`, `parser.py`, `symtable.py`, and `frames.py` with your completed prior-stage files. The PA 7 preflight exercises `Environment` and `ActivationRecord`; the lexer and parser provide imported AST types but their full behavior is not retested here. Run your earlier-stage tests separately.
 
-**Verification:** Run `python test_parameters.py`. The harness checks `swap` under all three modes, asymmetric `P(a,a)`, and closure capture. If value-mode isolates the caller, reference-mode mutates it, value-result mode defers the ordered write-back to return time, and each closure resolves through its captured `defining_env`, the script prints:
+**Verification:** Run `python test_parameters.py`. The harness checks `swap` under all three modes, asymmetric `P(a,a)`, cell sharing and return-time visibility, closure capture, and closure argument binding. If those checks pass, the script prints:
 ```
 PARAMETER_BINDING_VERIFIED
 ```

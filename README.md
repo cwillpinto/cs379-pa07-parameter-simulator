@@ -10,8 +10,9 @@ the files and evidence listed in the assignment through Blackboard.
 ## Setup
 Paste your own completed `lexer.py`/`parser.py`/`symtable.py`/`frames.py`
 in first.
-The harness checks these dependencies before the PA 7 cases and gives an
-actionable error if the prior-stage placeholders are still present.
+The PA 7 preflight exercises `Environment` and `ActivationRecord` before the
+PA 7 cases. `lexer.py` and `parser.py` supply imported AST types; this harness
+does not retest their full implementations. Run your earlier-stage tests separately.
 
 ## Run
 ```bash
@@ -21,6 +22,12 @@ Complete `bind_parameters`, `commit_value_result`, and `Closure` in
 `parameters.py` (`Cell`, `evaluate()`, and `FunctionDecl` are already
 given). Success Token: prints the literal string
 `PARAMETER_BINDING_VERIFIED` once every check passes.
+
+PA 4's `Environment` stored declaration line numbers. PA 7 uses the same
+`define`/`resolve` interface to store mutable `Cell` objects. Reference and
+value-result arguments must name caller variables; value arguments may be
+expressions. `Closure.call` receives already-evaluated values and binds them
+in a fresh child of the saved defining environment.
 
 For value-result, `bind_parameters` records destinations at call time and
 `commit_value_result` copies final values back at return, left to right in

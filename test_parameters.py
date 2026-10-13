@@ -11,12 +11,12 @@ import sys
 
 from frames import ActivationRecord
 from parameters import Cell, Closure, FunctionDecl, assign_through, bind_parameters, commit_value_result, evaluate
-from parser import Variable
+from parser import BinOp, Variable
 from symtable import Environment
 
 
 def dependency_preflight() -> None:
-    """Fail before the test body when PA 4/6 placeholders are still installed."""
+    """Check the prior-stage interfaces used by this PA before its test body."""
     env = Environment()
     try:
         env.define("pa7_preflight", Cell(7))
@@ -25,9 +25,10 @@ def dependency_preflight() -> None:
         assert record.locals_env is not None
     except (NotImplementedError, AssertionError, TypeError, AttributeError) as exc:
         raise SystemExit(
-            "PA 7 dependency preflight failed: copy your completed PA 4/PA 6 "
-            "lexer.py, parser.py, symtable.py, and frames.py into this directory "
-            "before running test_parameters.py. " + str(exc)
+            "PA 7 dependency preflight failed: copy your completed prior-stage "
+            "files into this directory. This check exercises Environment and "
+            "ActivationRecord; run your earlier tests separately for lexer/parser. "
+            + str(exc)
         ) from exc
 
 
@@ -118,6 +119,29 @@ def main() -> int:
     check("reference P(a,a): shared slot ends at 12", run_asymmetric("reference") == 12, failures)
     check("value-result P(a,a): left-to-right copy-back ends at 11", run_asymmetric("value-result") == 11, failures)
 
+    print("\nTesting Cell identity and return-time visibility...\n")
+    caller = Environment()
+    caller.define("a", Cell(10))
+    value_record = ActivationRecord("value", {}, Environment(), "call site", None, None)
+    bind_parameters([("x", "value")], [Variable("a", 0)], caller, value_record)
+    check("value mode allocates a separate Cell", value_record.locals_env.resolve("x") is not caller.resolve("a"), failures)
+    assign_through(value_record.locals_env, "x", 15)
+    check("value-mode assignment leaves caller at 10", evaluate(Variable("a", 0), caller) == 10, failures)
+
+    reference_record = ActivationRecord("reference", {}, Environment(), "call site", None, None)
+    bind_parameters([("x", "reference")], [Variable("a", 0)], caller, reference_record)
+    check("reference mode shares the caller Cell", reference_record.locals_env.resolve("x") is caller.resolve("a"), failures)
+    assign_through(reference_record.locals_env, "x", 12)
+    check("reference write is visible before return", evaluate(Variable("a", 0), caller) == 12, failures)
+
+    result_record = ActivationRecord("value-result", {}, Environment(), "call site", None, None)
+    bind_parameters([("x", "value-result")], [Variable("a", 0)], caller, result_record)
+    check("value-result starts with a private Cell", result_record.locals_env.resolve("x") is not caller.resolve("a"), failures)
+    assign_through(result_record.locals_env, "x", 20)
+    check("value-result write is hidden before return", evaluate(Variable("a", 0), caller) == 12, failures)
+    commit_value_result(result_record, caller)
+    check("value-result write appears at return", evaluate(Variable("a", 0), caller) == 20, failures)
+
     print("\nTesting closures capture the DEFINING environment, not a value snapshot...\n")
     loop_env = Environment()
     loop_env.define("i", Cell(0))
@@ -135,9 +159,15 @@ def main() -> int:
     outer_env = Environment()
     outer_env.define("captured", Cell(100))
     inner_closure = Closure(FunctionDecl([], Variable("captured", 0)), outer_env)
-    unrelated_caller_env = Environment()  # deliberately does NOT define 'captured'
+    unrelated_caller_env = Environment()
+    unrelated_caller_env.define("captured", Cell(999))
     result = inner_closure.call([], unrelated_caller_env)
     check("Closure.call resolves free variables via defining_env, ignoring caller_env entirely", result == 100, failures)
+
+    parameter_body = BinOp("+", Variable("captured", 0), Variable("offset", 0), 0)
+    parameter_closure = Closure(FunctionDecl(["offset"], parameter_body), outer_env)
+    check("closure binds a call argument beside the captured environment", parameter_closure.call([5], unrelated_caller_env) == 105, failures)
+    check("a later closure call gets its own parameter value", parameter_closure.call([7], unrelated_caller_env) == 107, failures)
 
     print()
     if failures:

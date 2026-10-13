@@ -6,16 +6,10 @@ Cell, evaluate(), and FunctionDecl are already provided -- do not
 modify them. See the assignment, Part B, for the
 full requirements.
 
-Design note (filling a gap in the assignment spec): Requirement 1
-says value-result mode must write the callee's final local value back
-to the caller "only when the function returns" -- but bind_parameters
-runs once, at CALL time, before the body executes. One function alone
-can't do both "bind at call time" and "write back at return time," so
-this starter adds a second function, commit_value_result, called
-AFTER the simulated function body finishes. bind_parameters sets up
-bookkeeping for value-result parameters (a list of (param_name,
-caller_var_name) pairs), and commit_value_result uses it to do the
-delayed write-back.
+Value-result binding has two steps: bind_parameters runs at call time
+and records each caller destination; commit_value_result runs after
+the simulated body and copies the final local values back in parameter
+order. The handout specifies both steps.
 
 Design note 2: variables are stored as Cell objects (a mutable box),
 not raw values, specifically so reference-mode parameters can share
