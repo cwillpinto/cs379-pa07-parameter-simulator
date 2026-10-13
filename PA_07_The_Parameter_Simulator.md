@@ -6,7 +6,7 @@
 ### 🔧 Pipeline Context
 This is the **argument-binding stage** of the USILang pipeline. It consumes the `ActivationRecord`/`CallStack` model from PA 6 — every call already gets a frame with locals, parameters, and links — and fills in exactly *how* arguments get copied (or not) into that frame's parameter slots. It also introduces **closures**, functions that carry their defining environment with them. The resulting call/closure mechanism becomes the dispatch target PA 8's VTable engine invokes next week.
 
-**Schedule:** Tuesday, October 6 is Fall Break. The Thursday, October 8 session supports this complete 100-point Project-Oriented Assignment. Due Monday, October 12, 2026 at 11:59 PM Central.
+**Schedule:** Due Monday, October 19, 2026 at 11:59 PM Central.
 
 **Verification question:** For each binding mode, identify who owns the writable cell, when the caller can observe a change, and which test would expose an incorrect implementation. Python's sharing of a mutable list object is a separate object-aliasing example; it is not itself USILang pass-by-reference.
 
